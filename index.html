@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gran Carrera Infantil Multijugador 🏎️</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif; background: #111; color: white; }
+    
+    /* PANTALLAS DE MENÚ */
+    .overlay { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); text-align: center; padding: 20px; }
+    h1 { font-size: 2.8rem; color: #FFD700; text-shadow: 3px 3px 0 #FF4500, 6px 6px 0 #000; margin-bottom: 15px; }
+    p { font-size: 1.2rem; margin-bottom: 20px; max-width: 600px; }
+
+    /* SELECCIÓN DE PISTA Y PERSONAJES */
+    .selection-container { display: flex; gap: 20px; width: 100%; max-width: 900px; justify-content: space-around; flex-wrap: wrap; margin-bottom: 20px; }
+    .player-box { background: rgba(255,255,255,0.1); border: 3px solid #FFF; border-radius: 15px; padding: 15px; width: 45%; min-width: 280px; }
+    .player-box h2 { margin-bottom: 10px; text-shadow: 2px 2px 0 #000; }
+    .grid-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .opt-card { background: rgba(255,255,255,0.2); border: 2px solid transparent; border-radius: 10px; padding: 8px; cursor: pointer; transition: 0.2s; text-align: center; }
+    .opt-card.selected { border-color: #00FF00; background: rgba(0,255,0,0.3); transform: scale(1.05); }
+    .opt-card span { font-size: 2rem; display: block; }
+    .opt-card label { font-size: 0.8rem; font-weight: bold; cursor: pointer; }
+
+    .track-select { margin-bottom: 20px; }
+    .track-select select { font-size: 1.1rem; padding: 8px 15px; border-radius: 10px; border: none; background: #FFD700; font-weight: bold; cursor: pointer; }
+
+    button.btn-start { background: linear-gradient(180deg, #FF4500, #FF0000); color: white; font-size: 1.8rem; font-weight: bold; border: none; padding: 12px 40px; border-radius: 50px; cursor: pointer; box-shadow: 0 6px 0 #900, 0 10px 10px rgba(0,0,0,0.5); transition: 0.1s; }
+    button.btn-start:active { transform: translateY(4px); box-shadow: 0 2px 0 #900; }
+
+    /* JUEGO PANTALLA DIVIDIDA */
+    #game-container { display: flex; width: 100vw; height: 100vh; position: relative; }
+    .screen-split { flex: 1; height: 100%; position: relative; overflow: hidden; border-right: 4px solid #FFD700; }
+    .screen-split:last-child { border-right: none; }
+    canvas { width: 100%; height: 100%; display: block; }
+
+    /* CONTROLES TÁCTILES SOBREPUESTOS (PARA CELULARES O TABLETS) */
+    .touch-controls { position: absolute; bottom: 10px; left: 0; width: 100%; display: flex; justify-content: space-between; padding: 0 10px; z-index: 5; pointer-events: none; }
+    .t-btn { width: 55px; height: 55px; background: rgba(255,255,255,0.4); border: 2px solid white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.5rem; pointer-events: auto; touch-action: manipulation; }
+    .t-btn:active { background: rgba(255,255,255,0.8); }
+    .t-btn-power { background: rgba(255, 215, 0, 0.7); font-size: 1.8rem; }
+
+    /* CONFETI */
+    #confetti-canvas { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index: 20; }
+  </style>
+</head>
+<body>
+
+  <!-- MENÚ INICIAL -->
+  <div id="menu" class="overlay">
+    <h1>🏎️ GRAN CARRERA INFANTIL 🏎️</h1>
+    <p>¡Compite con un amigo en la misma pantalla! Esquiva obstáculos, usa poderes mágicos y llega primero a la meta.</p>
+    
+    <div class="track-select">
+      <label for="track">Selecciona la Pista: </label>
+      <select id="track">
+        <option value="city">🏙️ Ciudad Soleada</option>
+        <option value="desert">🌵 Desierto Volcánico</option>
+        <option value="snow">❄️ Nieve Helada (¡Derrapes!)</option>
+        <option value="space">🚀 Pista Espacial</option>
+      </select>
+    </div>
+
+    <div class="selection-container">
+      <!-- JUGADOR 1 -->
+      <div class="player-box">
+        <h2 style="color: #FF4444;">🔴 Jugador 1</h2>
+        <p style="font-size:0.9rem; margin-bottom:8px;"><b>A / D:</b> Girar | <b>W:</b> 🚀 Cohete | <b>ESPACIO:</b> 🎁 Poder</p>
+        <div class="grid-options" id="p1-options">
+          <div class="opt-card selected" onclick="selectChar(1, 0)"><span>🐻</span><label>Oso Veloz</label></div>
+          <div class="opt-card" onclick="selectChar(1, 1)"><span>🦊</span><label>Zorro Rayo</label></div>
+          <div class="opt-card" onclick="selectChar(1, 2)"><span>🦁</span><label>Monstruo</label></div>
+          <div class="opt-card" onclick="selectChar(1, 3)"><span>🐰</span><label>Magia Rosa</label></div>
+          <div class="opt-card" onclick="selectChar(1, 4)"><span>🐸</span><label>Nave Verde</label></div>
+          <div class="opt-card" onclick="selectChar(1, 5)"><span>🦇</span><label>Batmóvil</label></div>
+        </div>
+      </div>
+
+      <!-- JUGADOR 2 -->
+      <div class="player-box">
+        <h2 style="color: #4444FF;">🔵 Jugador 2</h2>
+        <p style="font-size:0.9rem; margin-bottom:8px;"><b>Flechas ⬅️ ➡️:</b> Girar | <b>⬆️:</b> 🚀 Cohete | <b>ENTER:</b> 🎁 Poder</p>
+        <div class="grid-options" id="p2-options">
+          <div class="opt-card" onclick="selectChar(2, 0)"><span>🐻</span><label>Oso Veloz</label></div>
+          <div class="opt-card selected" onclick="selectChar(2, 1)"><span>🦊</span><label>Zorro Rayo</label></div>
+          <div class="opt-card" onclick="selectChar(2, 2)"><span>🦁</span><label>Monstruo</label></div>
+          <div class="opt-card" onclick="selectChar(2, 3)"><span>🐰</span><label>Magia Rosa</label></div>
+          <div class="opt-card" onclick="selectChar(2, 4)"><span>🐸</span><label>Nave Verde</label></div>
+          <div class="opt-card" onclick="selectChar(2, 5)"><span>🦇</span><label>Batmóvil</label></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-start" onclick="startGame()">¡ARRANCAR CARRERA!</button>
+  </div>
+
+  <!-- PANTALLA DE VICTORIA -->
+  <div id="game-over" class="overlay" style="display: none;">
+    <h1 id="winner-text">🏆 ¡JUGADOR 1 GANA! 🏆</h1>
+    <p id="winner-details"></p>
+    <button class="btn-start" onclick="restartGame()">¡JUGAR DE NUEVO!</button>
+  </div>
+
+  <!-- CONTENEDOR DEL JUEGO -->
+  <div id="game-container">
+    <!-- PANTALLA JUGADOR 1 -->
+    <div class="screen-split">
+      <canvas id="canvas1"></canvas>
+      <div class="touch-controls">
+        <div style="display:flex; gap:5px;">
+          <div class="t-btn" ontouchstart="keys['KeyA']=true" ontouchend="keys['KeyA']=false">⬅️</div>
+          <div class="t-btn" ontouchstart="keys['KeyD']=true" ontouchend="keys['KeyD']=false">➡️</div>
+        </div>
+        <div style="display:flex; gap:5px;">
+          <div class="t-btn t-btn-power" ontouchstart="triggerPower(1)">🎁</div>
+          <div class="t-btn" ontouchstart="keys['KeyW']=true" ontouchend="keys['KeyW']=false">🚀</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANTALLA JUGADOR 2 -->
+    <div class="screen-split">
+      <canvas id="canvas2"></canvas>
+      <div class="touch-controls">
+        <div style="display:flex; gap:5px;">
+          <div class="t-btn" ontouchstart="keys['ArrowLeft']=true" ontouchend="keys['ArrowLeft']=false">⬅️</div>
+          <div class="t-btn" ontouchstart="keys['ArrowRight']=true" ontouchend="keys['ArrowRight']=false">➡️</div>
+        </div>
+        <div style="display:flex; gap:5px;">
+          <div class="t-btn t-btn-power" ontouchstart="triggerPower(2)">🎁</div>
+          <div class="t-btn" ontouchstart="keys['ArrowUp']=true" ontouchend="keys['ArrowUp']=false">🚀</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <script>
+    // AUDIO GENERATOR (Web Audio API)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'coin') {
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+      } else if (type === 'powerup') {
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.25);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+      } else if (type === 'hit') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+      } else if (type === 'win') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+      }
+    }
+
+    // CONFIGURACIÓN DE PERSONAJES Y PISTAS
+    const CHARACTERS = [
+      { name: "Oso Veloz", emoji: "🐻", color: "#FF4444" },
+      { name: "Zorro Rayo", emoji: "🦊", color: "#FFBB00" },
+      { name: "Monstruo", emoji: "🦁", color: "#4444FF" },
+      { name: "Magia Rosa", emoji: "🐰", color: "#FF69B4" },
+      { name: "Nave Verde", emoji: "🐸", color: "#00FF66" },
+      { name: "Batmóvil", emoji: "🦇", color: "#9900FF" }
+    ];
+
+    const TRACKS = {
+      city: { bg: "#333", road: "#555", border: "#FFF", name: "Ciudad Soleada" },
+      desert: { bg: "#E6C280", road: "#B8860B", border: "#8B4513", name: "Desierto Volcánico" },
+      snow: { bg: "#E0FFFF", road: "#B0E0E6", border: "#4682B4", name: "Nieve Helada" },
+      space: { bg: "#0B0B2B", road: "#1A1A40", border: "#00FFFF", name: "Pista Espacial" }
+    };
+
+    let p1Char = 0, p2Char = 1;
+    let selectedTrack = 'city';
+    const RACE_DISTANCE = 1000;
+
+    function selectChar(player, idx) {
+      if (player === 1) {
+        p1Char = idx;
+        document.querySelectorAll('#p1-options .opt-card').forEach((el, i) => el.classList.toggle('selected', i === idx));
+      } else {
+        p2Char = idx;
+        document.querySelectorAll('#p2-options .opt-card').forEach((el, i) => el.classList.toggle('selected', i === idx));
+      }
+    }
+
+    // CONTROLES DEL TECLADO
+    const keys = {};
+    window.addEventListener('keydown', e => { 
+      keys[e.code] = true; 
+      // J1: Espacio o S para usar poder
+      if (e.code === 'Space' || e.code === 'KeyS') {
+        e.preventDefault();
+        triggerPower(1);
+      }
+      // J2: Enter o Flecha Abajo para usar poder
+      if (e.code === 'Enter' || e.code === 'ArrowDown') {
+        e.preventDefault();
+        triggerPower(2);
+      }
+    });
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    class Player {
+      constructor(id, charIdx, canvasId) {
+        this.id = id;
+        this.char = CHARACTERS[charIdx];
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.x = 0;
+        this.y = 0;
+        this.speed = 0;
+        this.maxSpeed = 7;
+        this.distance = 0;
+        this.stars = 0;
+        this.power = null;
+        this.shieldActive = false;
+        this.spinOut = 0;
+        this.slowDown = 0;
+        this.items = [];
+        this.roadOffset = 0;
+      }
+
+      reset() {
+        this.canvas.width = this.canvas.parentElement.clientWidth;
+        this.canvas.height = this.canvas.parentElement.clientHeight;
+        this.x = this.canvas.width / 2;
+        this.y = this.canvas.height - 120;
+        this.speed = 0;
+        this.distance = 0;
+        this.stars = 0;
+        this.power = null;
+        this.shieldActive = false;
+        this.spinOut = 0;
+        this.slowDown = 0;
+        this.items = [];
+      }
+    }
+
+    let player1, player2;
+    let gameActive = false;
+
+    function startGame() {
+      selectedTrack = document.getElementById('track').value;
+      player1 = new Player(1, p1Char, 'canvas1');
+      player2 = new Player(2, p2Char, 'canvas2');
+      player1.reset();
+      player2.reset();
+
+      document.getElementById('menu').style.display = 'none';
+      document.getElementById('game-over').style.display = 'none';
+      gameActive = true;
+      requestAnimationFrame(gameLoop);
+    }
+
+    function triggerPower(pNum) {
+      const p = pNum === 1 ? player1 : player2;
+      const opponent = pNum === 1 ? player2 : player1;
+      if (!p.power || !gameActive) return;
+
+      playSound('powerup');
+      if (p.power === 'banana') {
+        opponent.spinOut = 60;
+      } else if (p.power === 'shield') {
+        p.shieldActive = true;
+        setTimeout(() => p.shieldActive = false, 4000);
+      } else if (p.power === 'honey') {
+        opponent.slowDown = 120;
+      } else if (p.power === 'nitro') {
+        p.speed = 14;
+      }
+      p.power = null;
+    }
+
+    function spawnItem(p) {
+      if (Math.random() < 0.03) {
+        const types = ['star', 'obstacle', 'box'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        const laneX = Math.random() * (p.canvas.width - 120) + 60;
+        p.items.push({ x: laneX, y: -50, type: type });
+      }
+    }
+
+    function updatePlayer(p, leftKey, rightKey, turboKey) {
+      if (p.spinOut > 0) {
+        p.spinOut--;
+        return;
+      }
+
+      // Controles y aceleración con el Cohete (W / Flecha Arriba)
+      let accel = keys[turboKey] ? 0.25 : 0.1;
+      let topSpeed = keys[turboKey] ? p.maxSpeed * 1.5 : p.maxSpeed;
+
+      if (p.slowDown > 0) {
+        topSpeed *= 0.5;
+        p.slowDown--;
+      }
+
+      if (p.speed < topSpeed) p.speed += accel;
+      else p.speed -= 0.05;
+
+      // Movimiento Lateral (A / D | Flechas Izq / Der)
+      let turnSpeed = selectedTrack === 'snow' ? 4 : 6;
+      if (keys[leftKey] && p.x > 50) p.x -= turnSpeed;
+      if (keys[rightKey] && p.x < p.canvas.width - 50) p.x += turnSpeed;
+
+      p.distance += p.speed * 0.1;
+      p.roadOffset = (p.roadOffset + p.speed) % 40;
+
+      // Generar elementos
+      spawnItem(p);
+
+      // Actualizar elementos
+      for (let i = p.items.length - 1; i >= 0; i--) {
+        let it = p.items[i];
+        it.y += p.speed;
+
+        let dist = Math.hypot(p.x - it.x, p.y - it.y);
+        if (dist < 40) {
+          if (it.type === 'star') {
+            p.stars += 10;
+            playSound('coin');
+          } else if (it.type === 'obstacle') {
+            if (!p.shieldActive) {
+              p.speed = 1;
+              p.spinOut = 30;
+              playSound('hit');
+            }
+          } else if (it.type === 'box') {
+            const powers = ['banana', 'shield', 'honey', 'nitro'];
+            p.power = powers[Math.floor(Math.random() * powers.length)];
+            playSound('powerup');
+          }
+          p.items.splice(i, 1);
+          continue;
+        }
+
+        if (it.y > p.canvas.height + 50) p.items.splice(i, 1);
+      }
+
+      // Verificar Victoria
+      if (p.distance >= RACE_DISTANCE && gameActive) {
+        gameActive = false;
+        playSound('win');
+        endGame(p);
+      }
+    }
+
+    function drawPlayer(p) {
+      const ctx = p.ctx;
+      const track = TRACKS[selectedTrack];
+      ctx.clearRect(0, 0, p.canvas.width, p.canvas.height);
+
+      // Fondo
+      ctx.fillStyle = track.bg;
+      ctx.fillRect(0, 0, p.canvas.width, p.canvas.height);
+
+      // Carretera
+      ctx.fillStyle = track.road;
+      ctx.fillRect(40, 0, p.canvas.width - 80, p.canvas.height);
+
+      // Líneas de carril animadas
+      ctx.strokeStyle = track.border;
+      ctx.lineWidth = 6;
+      ctx.setLineDash([20, 20]);
+      ctx.lineDashOffset = -p.roadOffset;
+      ctx.beginPath();
+      ctx.moveTo(p.canvas.width / 2, 0);
+      ctx.lineTo(p.canvas.width / 2, p.canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // META
+      if (p.distance >= RACE_DISTANCE - 100) {
+        let metaY = p.canvas.height - 120 - (RACE_DISTANCE - p.distance) * 10;
+        ctx.fillStyle = "#FFF";
+        for (let i = 40; i < p.canvas.width - 40; i += 20) {
+          ctx.fillRect(i, metaY, 10, 10);
+          ctx.fillRect(i + 10, metaY + 10, 10, 10);
+        }
+      }
+
+      // Elementos (Estrellas, Obstáculos, Cajas)
+      p.items.forEach(it => {
+        ctx.font = "30px Arial";
+        ctx.textAlign = "center";
+        if (it.type === 'star') ctx.fillText("⭐", it.x, it.y);
+        else if (it.type === 'obstacle') ctx.fillText("🚧", it.x, it.y);
+        else if (it.type === 'box') ctx.fillText("🎁", it.x, it.y);
+      });
+
+      // Carrito / Personaje
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if (p.spinOut > 0) ctx.rotate((p.spinOut * 20 * Math.PI) / 180);
+
+      // Escudo visual
+      if (p.shieldActive) {
+        ctx.beginPath();
+        ctx.arc(0, 0, 35, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(0, 255, 255, 0.4)";
+        ctx.fill();
+        ctx.strokeStyle = "#00FFFF";
+        ctx.stroke();
+      }
+
+      // Carro
+      ctx.fillStyle = p.char.color;
+      ctx.beginPath();
+      ctx.roundRect(-20, -30, 40, 60, 10);
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.fillRect(-22, -25, 6, 12);
+      ctx.fillRect(16, -25, 6, 12);
+      ctx.fillRect(-22, 13, 6, 12);
+      ctx.fillRect(16, 13, 6, 12);
+
+      // Personaje Emoji
+      ctx.font = "26px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(p.char.emoji, 0, 8);
+      ctx.restore();
+
+      // HUD / Marcadores
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(10, 10, p.canvas.width - 20, 40);
+      ctx.fillStyle = "#FFD700";
+      ctx.font = "bold 15px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText(`Meta: ${Math.floor(p.distance)}m / ${RACE_DISTANCE}m`, 20, 35);
+      ctx.fillText(`⭐ ${p.stars}`, p.canvas.width - 75, 35);
+
+      if (p.power) {
+        const powerIcons = { banana: '🍌', shield: '🛡️', honey: '🍯', nitro: '⚡' };
+        ctx.fillText(`Poder: ${powerIcons[p.power]}`, p.canvas.width / 2 - 35, 35);
+      }
+    }
+
+    function gameLoop() {
+      if (!gameActive) return;
+
+      updatePlayer(player1, 'KeyA', 'KeyD', 'KeyW');
+      updatePlayer(player2, 'ArrowLeft', 'ArrowRight', 'ArrowUp');
+
+      drawPlayer(player1);
+      drawPlayer(player2);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function endGame(winner) {
+      document.getElementById('winner-text').innerText = `🏆 ¡${winner.char.name} (JUGADOR ${winner.id}) GANA! 🏆`;
+      document.getElementById('winner-details').innerText = `¡Completó los ${RACE_DISTANCE}m y recolectó ${winner.stars} estrellas!`;
+      document.getElementById('game-over').style.display = 'flex';
+      startConfetti();
+    }
+
+    function restartGame() {
+      stopConfetti();
+      document.getElementById('game-over').style.display = 'none';
+      document.getElementById('menu').style.display = 'flex';
+    }
+
+    // EFECTO CONFETI
+    let confettiInterval;
+    function startConfetti() {
+      const c = document.getElementById('confetti-canvas');
+      const ctx = c.getContext('2d');
+      c.width = window.innerWidth;
+      c.height = window.innerHeight;
+      const particles = Array.from({ length: 100 }, () => ({
+        x: Math.random() * c.width,
+        y: Math.random() * c.height - c.height,
+        color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+        size: Math.random() * 10 + 5,
+        speed: Math.random() * 5 + 2
+      }));
+
+      confettiInterval = setInterval(() => {
+        ctx.clearRect(0, 0, c.width, c.height);
+        particles.forEach(p => {
+          p.y += p.speed;
+          if (p.y > c.height) p.y = -10;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x, p.y, p.size, p.size);
+        });
+      }, 20);
+    }
+
+    function stopConfetti() {
+      clearInterval(confettiInterval);
+      const c = document.getElementById('confetti-canvas');
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+    }
+  </script>
+</body>
+</html>
